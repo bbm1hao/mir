@@ -165,16 +165,18 @@ bool miral::WindowInfo::can_be_active() const
     case mir_window_type_dialog:
     case mir_window_type_freestyle:
     case mir_window_type_menu:
+    case mir_window_type_anchored:
         return true;
 
     case mir_window_type_satellite:    /**< AKA "toolbox"/"toolbar"             */
     case mir_window_type_inputmethod:  /**< AKA "OSK" or handwriting etc.       */
     case mir_window_type_gloss:
     case mir_window_type_tip:          /**< AKA "tooltip"                       */
-    default:
+    case mir_window_types:
         // Cannot have input focus
-        return false;
+        break;
     }
+    return false;
 }
 
 bool miral::WindowInfo::must_have_parent() const
@@ -240,6 +242,7 @@ bool miral::WindowInfo::must_not_have_parent() const
     {
     case mir_window_type_normal:
     case mir_window_type_utility:
+    case mir_window_type_anchored:
         return true;
 
     default:

@@ -21,6 +21,8 @@
 #include "wl_surface.h"
 #include "window_wl_surface_role.h"
 
+#include "mir/shell/surface_specification.h"
+
 namespace mf = mir::frontend;
 namespace geom = mir::geometry;
 
@@ -76,6 +78,7 @@ void mf::LayerShellV1::get_layer_surface(struct wl_client* client, struct wl_res
     (void)output;
     (void)layer;
     (void)namespace_;
+
     new LayerSurfaceV1(client, resource, id, WlSurface::from(surface), *this);
 }
 
@@ -88,6 +91,10 @@ mf::LayerSurfaceV1::LayerSurfaceV1(struct wl_client* client, struct wl_resource*
       surface{surface}
 {
     (void)this->surface;
+
+    shell::SurfaceSpecification spec;
+    spec.type = mir_window_type_anchored;
+    apply_spec(spec);
 }
 
 void mf::LayerSurfaceV1::set_size(uint32_t width, uint32_t height)
