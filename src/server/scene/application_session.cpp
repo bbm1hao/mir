@@ -219,14 +219,16 @@ std::shared_ptr<ms::Surface> ms::ApplicationSession::surface_after(std::shared_p
             case mir_window_type_freestyle:
             case mir_window_type_menu:
             case mir_window_type_inputmethod:  /**< AKA "OSK" or handwriting etc.       */
+            case mir_window_type_anchored:
                 return true;
 
             case mir_window_type_gloss:
             case mir_window_type_tip:          /**< AKA "tooltip"                       */
-            default:
+            case mir_window_types:
                 // Cannot have input focus - skip it
-                return false;
+                break;
             }
+            return false;
         };
 
     auto next = std::find_if(++current, end(surfaces), can_take_focus);

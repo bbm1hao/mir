@@ -445,8 +445,7 @@ MirWindowType ms::BasicSurface::set_type(MirWindowType t)
 
     if (t < mir_window_type_normal || t >= mir_window_types)
     {
-        BOOST_THROW_EXCEPTION(std::logic_error("Invalid surface "
-            "type."));
+        BOOST_THROW_EXCEPTION(std::logic_error("Invalid surface type."));
     }
 
     if (type_ != t)
