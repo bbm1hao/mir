@@ -72,6 +72,10 @@ public:
     std::unique_ptr<renderer::gl::Context> create_gl_context() override;
     Frame last_frame_on(unsigned output_id) const override;
 
+    EGLContext shared_context() const
+    {
+        return context;
+    }
 private:
     mir::Fd const drm_node;
     EGLDisplay display;

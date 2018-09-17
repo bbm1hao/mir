@@ -15,6 +15,9 @@ set(
   atomic_frame.cpp
   ${PROJECT_SOURCE_DIR}/include/platform/mir/graphics/display.h
   ${PROJECT_SOURCE_DIR}/include/platform/mir/graphics/wayland_allocator.h
+  wayland_allocator.cpp
+  ${PROJECT_SOURCE_DIR}/include/platform/mir/graphics/texture.h
+  texture.cpp
 )
 
 add_library(mirplatformgraphicscommon OBJECT

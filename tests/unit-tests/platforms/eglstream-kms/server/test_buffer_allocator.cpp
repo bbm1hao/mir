@@ -32,7 +32,7 @@ struct BufferAllocator : testing::Test
 
 TEST_F(BufferAllocator, cannot_alloc_hardware_buffer)
 {
-    mge::BufferAllocator allocator;
+    mge::BufferAllocator allocator{EGL_NO_DISPLAY, EGL_NO_CONTEXT};
     EXPECT_THROW({
         allocator.alloc_buffer({1, 1}, 0u, 0u);
     }, std::runtime_error);
@@ -40,7 +40,7 @@ TEST_F(BufferAllocator, cannot_alloc_hardware_buffer)
 
 TEST_F(BufferAllocator, cannot_alloc_sw_buffer_from_list)
 {
-    mge::BufferAllocator allocator;
+    mge::BufferAllocator allocator{EGL_NO_DISPLAY, EGL_NO_CONTEXT};;
     auto supported = allocator.supported_pixel_formats();
     ASSERT_THAT(supported, Not(IsEmpty()));
     auto buffer = allocator.alloc_software_buffer({1, 1}, supported.front());
@@ -49,7 +49,7 @@ TEST_F(BufferAllocator, cannot_alloc_sw_buffer_from_list)
 
 TEST_F(BufferAllocator, cannot_alloc_hardware_buffer_legacy)
 {
-    mge::BufferAllocator allocator;
+    mge::BufferAllocator allocator{EGL_NO_DISPLAY, EGL_NO_CONTEXT};;
     EXPECT_THROW({
         allocator.alloc_buffer(
             mg::BufferProperties{ { 1, 1}, mir_pixel_format_abgr_8888, mg::BufferUsage::hardware});
@@ -58,7 +58,7 @@ TEST_F(BufferAllocator, cannot_alloc_hardware_buffer_legacy)
 
 TEST_F(BufferAllocator, can_alloc_hardware_buffer_legacy)
 {
-    mge::BufferAllocator allocator;
+    mge::BufferAllocator allocator{EGL_NO_DISPLAY, EGL_NO_CONTEXT};;
     mir::geometry::Size size { 1, 22 };
     auto supported = allocator.supported_pixel_formats();
     ASSERT_THAT(supported, Not(IsEmpty()));

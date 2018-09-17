@@ -199,5 +199,17 @@ MIR_PLATFORM_0.32.3 {
     mir::options::wayland_extensions_opt;
     mir::options::wayland_extensions_value;
     mir::options::x11_display_opt;
+
+    mir::graphics::WaylandAllocator::?WaylandAllocator*;
+    typeinfo?for?mir::graphics::WaylandAllocator;
+    vtable?for?mir::graphics::WaylandAllocator;
+
+    mir::graphics::gl::Texture::?Texture*;
+    typeinfo?for?mir::graphics::gl::Texture;
+    vtable?for?mir::graphics::gl::Texture;
+
+# Again private
+    mir::graphics::EGLExtensions::WaylandExtensions::WaylandExtensions*;
+    mir::graphics::EGLExtensions::NVStreamAttribExtensions::NVStreamAttribExtensions*;
   };
 } MIR_PLATFORM_0.33;

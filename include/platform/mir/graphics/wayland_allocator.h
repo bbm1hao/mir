@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <memory>
+#include <functional>
 
 #include <wayland-server-core.h>
 
@@ -34,7 +35,7 @@ class Buffer;
 class WaylandAllocator
 {
 public:
-    virtual ~WaylandAllocator() = default;
+    virtual ~WaylandAllocator();
 
     virtual void bind_display(wl_display* display) = 0;
     virtual std::shared_ptr<Buffer> buffer_from_resource(

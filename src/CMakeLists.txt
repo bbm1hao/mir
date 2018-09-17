@@ -6,6 +6,9 @@ set(MIRAL_VERSION_MINOR 4)
 set(MIRAL_VERSION_PATCH 0)
 set(MIRAL_VERSION ${MIRAL_VERSION_MAJOR}.${MIRAL_VERSION_MINOR}.${MIRAL_VERSION_PATCH})
 
+
+add_definitions(-DWL_HIDE_DEPRECATED)
+
 # Add the cookie implementation before exposing any APIs
 add_subdirectory(cookie/)
 

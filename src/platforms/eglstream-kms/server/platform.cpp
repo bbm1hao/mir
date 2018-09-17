@@ -43,6 +43,35 @@ namespace mg = mir::graphics;
 namespace mge = mir::graphics::eglstream;
 namespace mgc = mir::graphics::common;
 
+namespace
+{
+std::mutex sharing_mutex;
+EGLContext shared_context{EGL_NO_CONTEXT};
+
+void set_sharing_context(EGLContext ctx)
+{
+    std::lock_guard<std::mutex> lock{sharing_mutex};
+    shared_context = ctx;
+}
+
+EGLContext get_shared_context()
+{
+    return shared_context;
+}
+
+EGLDisplay shared_display{EGL_NO_DISPLAY};
+
+void set_shared_display(EGLDisplay dpy)
+{
+    shared_display = dpy;
+}
+
+EGLDisplay get_shared_display()
+{
+    return shared_display;
+}
+}
+
 mge::DisplayPlatform::DisplayPlatform(ConsoleServices& console, EGLDeviceEXT device)
     : display{EGL_NO_DISPLAY}
 {
@@ -70,6 +99,8 @@ mge::DisplayPlatform::DisplayPlatform(ConsoleServices& console, EGLDeviceEXT dev
         BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create EGLDisplay on the EGLDeviceEXT"));
     }
 
+    set_shared_display(display);
+
     EGLint major{1};
     EGLint minor{4};
     auto const required_egl_version_major = major;
@@ -91,7 +122,10 @@ mir::UniqueModulePtr<mg::Display> mge::DisplayPlatform::create_display(
     std::shared_ptr<DisplayConfigurationPolicy> const& configuration_policy,
     std::shared_ptr<GLConfig> const& gl_config)
 {
-    return mir::make_module_ptr<mge::Display>(drm_node, display, configuration_policy, *gl_config);
+    auto retval =
+        mir::make_module_ptr<mge::Display>(drm_node, display, configuration_policy, *gl_config);
+    set_sharing_context(retval->shared_context());
+    return retval;
 }
 
 mg::NativeDisplayPlatform* mge::DisplayPlatform::native_display_platform()
@@ -109,7 +143,7 @@ std::vector<mir::ExtensionDescription> mge::DisplayPlatform::extensions() const
 
 mir::UniqueModulePtr<mg::GraphicBufferAllocator> mge::RenderingPlatform::create_buffer_allocator()
 {
-    return mir::make_module_ptr<mge::BufferAllocator>();
+    return mir::make_module_ptr<mge::BufferAllocator>(get_shared_display(), get_shared_context());
 }
 
 mg::NativeRenderingPlatform* mge::RenderingPlatform::native_rendering_platform()

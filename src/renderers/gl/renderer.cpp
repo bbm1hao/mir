@@ -38,6 +38,7 @@
 #include <boost/throw_exception.hpp>
 #include <stdexcept>
 #include <cmath>
+#include <mir/graphics/texture.h>
 
 namespace mg = mir::graphics;
 namespace mgl = mir::gl;
@@ -92,6 +93,34 @@ const GLchar* const mrg::Renderer::vshader =
     "}\n"
 };
 
+const GLchar* const mrg::Renderer::external_alpha_fshader =
+{
+    "#ifdef GL_ES\n"
+    "#extension GL_OES_EGL_image_external : require\n"
+    "precision mediump float;\n"
+    "#endif\n"
+    "uniform samplerExternalOES tex;\n"
+    "uniform float alpha;\n"
+    "varying vec2 v_texcoord;\n"
+    "void main() {\n"
+    "   vec4 frag = texture2D(tex, v_texcoord);\n"
+    "   gl_FragColor = alpha*frag;\n"
+    "}\n"
+};
+
+const GLchar* const mrg::Renderer::external_default_fshader =
+{   // This is the fastest fragment shader. Use it when you can.
+    "#ifdef GL_ES\n"
+    "#extension GL_OES_EGL_image_external : require\n"
+    "precision mediump float;\n"
+    "#endif\n"
+    "uniform samplerExternalOES tex;\n"
+    "varying vec2 v_texcoord;\n"
+    "void main() {\n"
+    "   gl_FragColor = texture2D(tex, v_texcoord);\n"
+    "}\n"
+};
+
 const GLchar* const mrg::Renderer::alpha_fshader =
 {
     "#ifdef GL_ES\n"
@@ -136,6 +165,8 @@ mrg::Renderer::Renderer(graphics::DisplayBuffer& display_buffer)
       clear_color{0.0f, 0.0f, 0.0f, 0.0f},
       default_program(family.add_program(vshader, default_fshader)),
       alpha_program(family.add_program(vshader, alpha_fshader)),
+      external_default_program(family.add_program(vshader, external_default_fshader)),
+      external_alpha_program(family.add_program(vshader, external_alpha_fshader)),
       texture_cache(mgl::DefaultProgramFactory().create_texture_cache()),
       display_transform(1)
 {
@@ -211,7 +242,13 @@ void mrg::Renderer::render(mg::RenderableList const& renderables) const
 
     ++frameno;
     for (auto const& r : renderables)
-        draw(*r, r->alpha() < 1.0f ? alpha_program : default_program);
+    {
+        auto const is_external =
+            static_cast<bool>(std::dynamic_pointer_cast<mg::gl::Texture>(r->buffer()));
+        draw(*r, r->alpha() < 1.0f ?
+                 (is_external ? external_alpha_program : alpha_program) :
+                 (is_external ? external_default_program : default_program));
+    }
 
     render_target.swap_buffers();
 
@@ -246,8 +283,19 @@ void mrg::Renderer::draw(mg::Renderable const& renderable,
                       rect.size.height.as_int() / 2.0f;
     glUniform2f(prog.centre_uniform, centrex, centrey);
 
+    glm::mat4 transform = renderable.transformation();
+    if (prog.id == external_default_program.id || prog.id == external_alpha_program.id)
+    {
+        transform *= glm::mat4{
+            2.0, 0.0, 0.0, 0.0,
+            0.0, -2.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            -1.0, 1.0, 0.0, 1.0
+        };
+    }
+
     glUniformMatrix4fv(prog.transform_uniform, 1, GL_FALSE,
-                       glm::value_ptr(renderable.transformation()));
+                       glm::value_ptr(transform));
 
     if (prog.alpha_uniform >= 0)
         glUniform1f(prog.alpha_uniform, renderable.alpha());
@@ -261,7 +309,14 @@ void mrg::Renderer::draw(mg::Renderable const& renderable,
     // if we fail to load the texture, we need to carry on (part of lp:1629275)
     try
     {
-        auto surface_tex = texture_cache->load(renderable);
+        auto tex = std::dynamic_pointer_cast<mg::gl::Texture>(renderable.buffer());
+        auto surface_tex =
+            [this, &tex, &renderable]() -> std::shared_ptr<mir::gl::Texture>
+            {
+                if (!tex)
+                    return texture_cache->load(renderable);
+                return nullptr;
+            }();
 
         typedef struct  // Represents parameters of glBlendFuncSeparate()
         {
@@ -297,7 +352,10 @@ void mrg::Renderer::draw(mg::Renderable const& renderable,
             if (p.tex_id == 0)   // The client surface texture
             {
                 blend = client_blend;
-                surface_tex->bind();
+                if (surface_tex)
+                    surface_tex->bind();
+                if (tex)
+                    tex->bind();
             }
             else   // Some other texture from the shell (e.g. decorations) which
             {      // is always RGBA (valid SRC_ALPHA).
@@ -325,6 +383,10 @@ void mrg::Renderer::draw(mg::Renderable const& renderable,
             }
 
             glDrawArrays(p.type, 0, p.nvertices);
+
+            // We're done with the texture for now
+            if (tex)
+                tex->add_syncpoint();
         }
     }
     catch (std::exception const& ex)

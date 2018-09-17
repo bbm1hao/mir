@@ -33,15 +33,25 @@
 #include "mir/graphics/transformation.h"
 #include "mir/renderer/gl/render_target.h"
 #include "mir/renderer/gl/context.h"
+#include "mir/graphics/egl_extensions.h"
+
+#define MIR_LOG_COMPONENT "platform-eglstream-kms"
+#include "mir/log.h"
 
 #include <xf86drmMode.h>
 #include <sys/ioctl.h>
 #include <system_error>
+#include <poll.h>
 #include <boost/throw_exception.hpp>
 
 namespace mg = mir::graphics;
 namespace mge = mir::graphics::eglstream;
 namespace mgk = mir::graphics::kms;
+
+#ifndef EGL_NV_output_drm_flip_event
+#define EGL_NV_output_drm_flip_event 1
+#define EGL_DRM_FLIP_EVENT_DATA_NV            0x333E
+#endif /* EGL_NV_output_drm_flip_event */
 
 namespace
 {
@@ -120,15 +130,22 @@ class DisplayBuffer
       public mir::renderer::gl::RenderTarget
 {
 public:
-    DisplayBuffer(EGLDisplay dpy, EGLContext ctx, EGLConfig config, mge::kms::EGLOutput const& output)
+    DisplayBuffer(
+        mir::Fd drm_node,
+        EGLDisplay dpy,
+        EGLContext ctx,
+        EGLConfig config,
+        mge::kms::EGLOutput const& output)
         : dpy{dpy},
           ctx{create_context(dpy, config, ctx)},
           layer{output.output_layer()},
           view_area_{output.extents()},
-          transform{output.transformation()}
+          transform{output.transformation()},
+          drm_node{std::move(drm_node)}
     {
         EGLint const stream_attribs[] = {
             EGL_STREAM_FIFO_LENGTH_KHR, 1,
+            EGL_CONSUMER_AUTO_ACQUIRE_EXT, EGL_FALSE,
             EGL_NONE
         };
         output_stream = eglCreateStreamKHR(dpy, stream_attribs);
@@ -218,7 +235,37 @@ public:
 
     void post() override
     {
+        if (page_flip_pending)
+        {
+            pollfd fds;
+            fds.fd = drm_node;
+            fds.events = POLLIN;
 
+            if (::poll(&fds, 1, -1) == -1)
+            {
+                BOOST_THROW_EXCEPTION((std::system_error{
+                    errno,
+                    std::system_category(),
+                    "Failed to wait for DRM flip event"}));
+            }
+
+            drmEventContext ctx;
+            ctx.version = 2;
+            ctx.vblank_handler = nullptr;
+            ctx.page_flip_handler = &DisplayBuffer::page_flip_handler;
+
+            drmHandleEvent(drm_node, &ctx);
+        }
+
+        EGLAttrib const acquire_attribs[] = {
+            EGL_DRM_FLIP_EVENT_DATA_NV, reinterpret_cast<EGLAttrib>(this),
+            EGL_NONE
+        };
+        if (nv_stream.eglStreamConsumerAcquireAttribNV(dpy, output_stream, acquire_attribs) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to submit frame from EGLStream for display"));
+        }
+        page_flip_pending = true;
     }
 
     void bind() override
@@ -231,6 +278,22 @@ public:
     }
 
 private:
+    static void page_flip_handler(
+        int /*fd*/,
+        unsigned int /*frame*/,
+        unsigned int /*sec*/,
+        unsigned int /*usec*/,
+        void* data)
+    {
+        auto me = static_cast<DisplayBuffer*>(data);
+
+        if (!me->page_flip_pending)
+        {
+            mir::log_warning("Page flip handler called without a pending page flip?");
+        }
+        me->page_flip_pending = false;
+    }
+
     EGLDisplay dpy;
     EGLContext ctx;
     EGLOutputLayerEXT layer;
@@ -238,6 +301,9 @@ private:
     glm::mat2 const transform;
     EGLStreamKHR output_stream;
     EGLSurface surface;
+    bool page_flip_pending{false};
+    mir::Fd const drm_node;
+    mg::EGLExtensions::NVStreamAttribExtensions nv_stream;
 };
 
 mge::KMSDisplayConfiguration create_display_configuration(
@@ -304,7 +370,7 @@ void mge::Display::configure(DisplayConfiguration const& conf)
              if (output.used)
              {
                  const_cast<kms::EGLOutput&>(output).configure(output.current_mode_index);
-                 active_sync_groups.emplace_back(std::make_unique<::DisplayBuffer>(display, context, config, output));
+                 active_sync_groups.emplace_back(std::make_unique<::DisplayBuffer>(drm_node, display, context, config, output));
              }
          });
 }

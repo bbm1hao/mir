@@ -113,11 +113,13 @@ protected:
 
        Program(GLuint program_id);
     };
-    Program default_program, alpha_program;
+    Program default_program, alpha_program, external_default_program, external_alpha_program;
 
     static const GLchar* const vshader;
     static const GLchar* const default_fshader;
     static const GLchar* const alpha_fshader;
+    static const GLchar* const external_default_fshader;
+    static const GLchar* const external_alpha_fshader;
 
     virtual void draw(graphics::Renderable const& renderable,
                       Renderer::Program const& prog) const;

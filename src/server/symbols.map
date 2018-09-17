@@ -947,3 +947,10 @@ MIR_SERVER_0.32 {
     mir::DefaultServerConfiguration::default_reports*;
   };
 } MIR_SERVER_0.31;
+
+MIR_SERVER_0.33 {
+ global:
+  extern "C++" {
+   typeinfo?for?mir::graphics::WaylandAllocator;
+  };
+} MIR_SERVER_0.32;
